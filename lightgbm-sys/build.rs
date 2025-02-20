@@ -20,10 +20,24 @@ fn main() {
 		)
 		.build();
 
-	// bindgen build
 	let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+	// Patch c_api.h to workaround https://github.com/microsoft/LightGBM/issues/6839
+	let c_api_patched_path = out_path.join("c_api_patched.h");
+	let status = Command::new("patch")
+		.arg("-o")
+		.arg(&c_api_patched_path)
+		.arg(out_path.join("include/LightGBM/c_api.h"))
+		.arg("c_api.h.patch")
+		.status()
+		.expect("Failed to execute patch command");
+	if !status.success() {
+		panic!("Failed to apply patch to c_api.h");
+	}
+
+	// bindgen build
 	let bindings = bindgen::Builder::default()
-		.header("wrapper.h")
+		.header(c_api_patched_path.into_os_string().into_string().unwrap())
 		.clang_args(&["-x", "c++", "-std=c++14"])
 		.clang_arg(format!("-I{}", out_path.join("include").display()))
 		.default_macro_constant_type(bindgen::MacroTypeVariation::Signed)

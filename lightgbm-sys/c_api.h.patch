@@ -1,0 +1,14 @@
+diff --git a/include/LightGBM/c_api.h b/include/LightGBM/c_api.h
+index 8f8137df..478dbc94 100644
+--- a/include/LightGBM/c_api.h
++++ b/include/LightGBM/c_api.h
+@@ -13,7 +13,8 @@
+ #ifndef LIGHTGBM_C_API_H_
+ #define LIGHTGBM_C_API_H_
+ 
+-#include <LightGBM/arrow.h>
++typedef void ArrowArray;
++typedef void ArrowSchema;
+ #include <LightGBM/export.h>
+ 
+ #ifdef __cplusplus
