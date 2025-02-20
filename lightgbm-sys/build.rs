@@ -62,7 +62,7 @@ fn main() {
 #[derive(Debug)]
 enum HomebrewError {
 	Brew,
-	Path(String),
+	Path(#[allow(unused)] String),
 	LibNotFound,
 }
 
