@@ -464,14 +464,41 @@ impl Booster {
 		Ok(cstring.into_bytes())
 	}
 
-	/// Save model to string. This returns the same content that `save_file` writes into a file.
+	/// Dump the full model — every tree — to JSON. This returns the same content that `save_file`
+	/// writes into a file.
 	pub fn dump_model_json(&self) -> Result<Vec<u8>> {
+		// `num_iteration <= 0` means "all trees".
+		self.dump_model(-1_i32)
+	}
+
+	/// Dump only the model's metadata to JSON, omitting the bulk of the forest.
+	///
+	/// The output has the same shape as [`dump_model_json`](Self::dump_model_json) — the header
+	/// (`feature_names`, `feature_infos`, `objective`, …) is always emitted in full — but
+	/// `tree_info` contains only the first iteration's tree(s) instead of every tree. Use this
+	/// when you only need the model header (e.g. to validate feature names or which features are
+	/// categorical) and not the trees themselves.
+	///
+	/// For large models this is orders of magnitude cheaper than
+	/// [`dump_model_json`](Self::dump_model_json): the latter serialises every tree (potentially
+	/// hundreds of MB), and the underlying C API builds the whole string twice — once to size the
+	/// buffer, once to fill it.
+	pub fn model_info_json(&self) -> Result<Vec<u8>> {
+		// `1` is the smallest `num_iteration` that truncates the forest (`<= 0` means "all trees");
+		// the header and `feature_infos` are emitted in full regardless.
+		self.dump_model(1_i32)
+	}
+
+	/// Dump the model to JSON via `LGBM_BoosterDumpModel`, including up to `num_iteration`
+	/// iterations of trees (`num_iteration <= 0` dumps all of them). The model header and
+	/// `feature_infos` are always emitted in full, independent of `num_iteration`.
+	fn dump_model(&self, num_iteration: i32) -> Result<Vec<u8>> {
 		// get nessesary buffer size
 		let mut out_size = 0_i64;
 		lgbm_call!(lightgbm_sys::LGBM_BoosterDumpModel(
 			self.handle,
 			0_i32,
-			-1_i32,
+			num_iteration,
 			0_i32,
 			0,
 			&mut out_size as *mut _,
@@ -488,7 +515,7 @@ impl Booster {
 		lgbm_call!(lightgbm_sys::LGBM_BoosterDumpModel(
 			self.handle,
 			0_i32,
-			-1_i32,
+			num_iteration,
 			0_i32,
 			out_size,
 			&mut out_size as *mut _,
@@ -872,5 +899,22 @@ mod tests {
 			  "version": "v4"
 			})
 		);
+	}
+
+	#[test]
+	fn model_info_json() {
+		let params = json! {
+			{
+				"num_iterations": 10,
+				"objective": "binary",
+				"metric": "auc",
+				"min_data_in_leaf": 1,
+				"min_gain_to_split": 0.0,
+				"data_random_seed": 0
+			}
+		};
+		let bst = _train_booster(&params);
+
+		bst.model_info_json().expect("Failed to dump model info");
 	}
 }
